@@ -39,14 +39,18 @@ def _headers() -> dict[str, str]:
 # ── Watches ──────────────────────────────────────────────────────────
 
 
-def list_watches(tag: str | None = None) -> dict[str, Any]:
-    """Return all watches.  Optionally filter by tag."""
+def list_watches(tag: str | None = None) -> list[dict[str, Any]]:
+    """Return all watches as a list.  Optionally filter by tag."""
     params: dict[str, str] = {}
     if tag:
         params["tag"] = tag
     r = httpx.get(f"{_get_base_url()}/watch", headers=_headers(), params=params, timeout=15)
     r.raise_for_status()
-    return r.json()
+    data = r.json()
+    # API returns dict keyed by UUID — normalise to list
+    if isinstance(data, dict):
+        return list(data.values())
+    return data
 
 
 def get_watch(uuid: str) -> dict[str, Any]:
@@ -149,8 +153,8 @@ def create_tag(title: str) -> dict[str, Any]:
 # ── Search ───────────────────────────────────────────────────────────
 
 
-def search_watches(query: str, tag: str | None = None, partial: bool = True) -> dict[str, Any]:
-    """Search watches by URL or title."""
+def search_watches(query: str, tag: str | None = None, partial: bool = True) -> list[dict[str, Any]]:
+    """Search watches by URL or title. Returns a list of watch dicts."""
     params: dict[str, str] = {"q": query}
     if tag:
         params["tag"] = tag
@@ -158,7 +162,11 @@ def search_watches(query: str, tag: str | None = None, partial: bool = True) -> 
         params["partial"] = "1"
     r = httpx.get(f"{_get_base_url()}/search", headers=_headers(), params=params, timeout=15)
     r.raise_for_status()
-    return r.json()
+    data = r.json()
+    # API returns dict keyed by UUID — normalise to list
+    if isinstance(data, dict):
+        return list(data.values())
+    return data
 
 
 # ── System ───────────────────────────────────────────────────────────
