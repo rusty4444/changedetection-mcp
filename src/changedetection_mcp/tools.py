@@ -61,6 +61,9 @@ def register_tools(mcp: FastMCP) -> None:
             kwargs["paused"] = paused
         try:
             data = api.create_watch(url, **kwargs)
+            # create_watch only returns {"uuid": "..."}, fetch full detail
+            if "uuid" in data and "url" not in data:
+                data = api.get_watch(data["uuid"])
             return _format_watch_detail(data)
         except Exception as e:
             return f"Error creating watch: {e}"
@@ -102,7 +105,9 @@ def register_tools(mcp: FastMCP) -> None:
     ) -> str:
         """Permanently delete a watch and all its history."""
         try:
-            api.delete_watch(uuid)
+            result = api.delete_watch(uuid)
+            if result.get("deleted"):
+                return f"Deleted watch `{uuid}`"
             return f"Deleted watch {uuid}"
         except Exception as e:
             return f"Error deleting watch {uuid}: {e}"
@@ -168,7 +173,7 @@ def register_tools(mcp: FastMCP) -> None:
                 return "No tags configured."
             lines = [
                 f"• **{t.get('title', t.get('name', '?'))}** (`{t.get('uuid', t.get('id', '?'))}`)"
-                for t in tags
+                for t in raw_tags
             ]
             return f"**{len(lines)} tags:**\n" + "\n".join(lines)
         except Exception as e:

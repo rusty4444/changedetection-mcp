@@ -74,14 +74,16 @@ def update_watch(uuid: str, **kwargs: Any) -> dict[str, Any]:
     body = {k: v for k, v in kwargs.items() if v is not None}
     r = httpx.put(f"{_get_base_url()}/watch/{uuid}", headers=_headers(), json=body, timeout=15)
     r.raise_for_status()
-    return r.json()
+    # PUT returns "OK" or {"ok": True} on success; get_watch for fresh detail
+    return get_watch(uuid)
 
 
 def delete_watch(uuid: str) -> dict[str, Any]:
     """Delete a watch and all its history."""
     r = httpx.delete(f"{_get_base_url()}/watch/{uuid}", headers=_headers(), timeout=15)
     r.raise_for_status()
-    return r.json()
+    # DELETE returns 204 No Content (empty body)
+    return {"uuid": uuid, "deleted": True}
 
 
 def recheck_watch(uuid: str) -> dict[str, Any]:
@@ -93,7 +95,8 @@ def recheck_watch(uuid: str) -> dict[str, Any]:
         timeout=30,
     )
     r.raise_for_status()
-    return r.json()
+    # recheck param returns ["OK"] (JSON array), not watch dict — fetch real data
+    return get_watch(uuid)
 
 
 # ── History & diffs ──────────────────────────────────────────────────
