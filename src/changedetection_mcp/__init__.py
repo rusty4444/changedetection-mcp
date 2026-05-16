@@ -12,7 +12,6 @@ from .tools import register_tools
 
 mcp = FastMCP(
     "changedetection",
-    description="ChangeDetection.io — AI-native website change monitoring",
 )
 
 
