@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import os
 from typing import Annotated, Any
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
 
 from . import client as api
+
+
+DEFAULT_ACTION_LIMIT_PER_WATCH = 3
+ACTION_LIMIT_ENV_VAR = "CHANGEDETECTION_MCP_ACTION_LIMIT_PER_WATCH"
+
+# Per-process fuse armed by get_snapshot_diff(). A missing key means no active
+# fuse for that watch; a present key tracks the remaining mutating MCP actions.
+_watch_action_budgets: dict[str, int] = {}
 
 
 def register_tools(mcp: FastMCP) -> None:
@@ -78,6 +87,9 @@ def register_tools(mcp: FastMCP) -> None:
         tag: Annotated[str | None, Field(description="New tag / group assignment")] = None,
     ) -> str:
         """Update an existing watch's settings."""
+        blocked = _consume_watch_action(uuid, "update_watch")
+        if blocked:
+            return blocked
         kwargs: dict[str, Any] = {}
         if title is not None:
             kwargs["title"] = title
@@ -104,6 +116,9 @@ def register_tools(mcp: FastMCP) -> None:
         uuid: Annotated[str, Field(description="The watch UUID to delete")],
     ) -> str:
         """Permanently delete a watch and all its history."""
+        blocked = _consume_watch_action(uuid, "delete_watch")
+        if blocked:
+            return blocked
         try:
             result = api.delete_watch(uuid)
             if result.get("deleted"):
@@ -117,6 +132,9 @@ def register_tools(mcp: FastMCP) -> None:
         uuid: Annotated[str, Field(description="The watch UUID to recheck")],
     ) -> str:
         """Trigger an immediate recheck of a watch URL."""
+        blocked = _consume_watch_action(uuid, "recheck_watch")
+        if blocked:
+            return blocked
         try:
             data = api.recheck_watch(uuid)
             return f"Recheck triggered for {data.get('title', uuid)}\n{_format_watch_detail(data)}"
@@ -146,11 +164,22 @@ def register_tools(mcp: FastMCP) -> None:
         uuid: Annotated[str, Field(description="The watch UUID")],
         from_timestamp: Annotated[str, Field(description="Earlier snapshot timestamp. Use 'latest' or 'previous' as shortcuts.")],
         to_timestamp: Annotated[str, Field(description="Later snapshot timestamp. Use 'latest' or 'previous' as shortcuts.")],
+        action_limit: Annotated[
+            int | None,
+            Field(
+                description=(
+                    "Maximum mutating actions this MCP server will allow for this "
+                    "watch after returning the diff. Defaults to "
+                    "CHANGEDETECTION_MCP_ACTION_LIMIT_PER_WATCH (3). Set 0 to disable."
+                )
+            ),
+        ] = None,
     ) -> str:
         """Get the diff between two snapshots of a watched URL."""
         try:
             diff = api.get_snapshot_diff(uuid, from_timestamp, to_timestamp)
-            return diff
+            fuse_message = _arm_watch_action_limit(uuid, action_limit)
+            return f"{diff}\n\n{fuse_message}" if diff else fuse_message
         except Exception as e:
             return f"Error getting diff: {e}"
 
@@ -226,6 +255,45 @@ def register_tools(mcp: FastMCP) -> None:
 
 # Cache for resolving tag names → UUIDs
 _tag_cache: dict[str, str] | None = None
+
+
+def _default_action_limit_per_watch() -> int:
+    """Return the configured default per-watch action limit."""
+    raw = os.environ.get(ACTION_LIMIT_ENV_VAR)
+    if raw is None or raw == "":
+        return DEFAULT_ACTION_LIMIT_PER_WATCH
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return DEFAULT_ACTION_LIMIT_PER_WATCH
+
+
+def _arm_watch_action_limit(uuid: str, action_limit: int | None) -> str:
+    """Arm or disable the per-watch mutating-action fuse."""
+    limit = _default_action_limit_per_watch() if action_limit is None else max(0, int(action_limit))
+    if limit == 0:
+        _watch_action_budgets.pop(uuid, None)
+        return f"Action fuse disabled for watch `{uuid}`."
+
+    _watch_action_budgets[uuid] = limit
+    plural = "action" if limit == 1 else "actions"
+    return f"Action fuse armed for watch `{uuid}`: {limit} mutating {plural} remaining."
+
+
+def _consume_watch_action(uuid: str, action_name: str) -> str | None:
+    """Consume one action from an armed watch fuse; return an error if exhausted."""
+    remaining = _watch_action_budgets.get(uuid)
+    if remaining is None:
+        return None
+    if remaining <= 0:
+        return (
+            f"Action limit reached for watch `{uuid}`; `{action_name}` was blocked. "
+            "Call `get_snapshot_diff` with a higher `action_limit` to re-arm the fuse, "
+            "or with `action_limit=0` to disable it for this watch."
+        )
+
+    _watch_action_budgets[uuid] = remaining - 1
+    return None
 
 
 def _resolve_tag_uuid(tag_name: str) -> str | None:

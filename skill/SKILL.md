@@ -82,7 +82,15 @@ Show me all my active watches.
 What changed on my watched page in the last 24 hours?
 ```
 
-→ Calls `get_watch_history()` then `get_snapshot_diff()`
+→ Calls `get_watch_history()` then `get_snapshot_diff()`. The diff call arms the per-watch action fuse, limiting follow-up mutating actions for that watch.
+
+### Control follow-up action limits
+
+```
+Show me what changed on this noisy watch, but allow at most one follow-up action.
+```
+
+→ Calls `get_snapshot_diff(..., action_limit=1)`. Use `action_limit=0` only when the user explicitly wants the fuse disabled for that watch.
 
 ### Set up persistent monitoring with cron
 
@@ -107,6 +115,7 @@ Pause the watch on example.com till next week.
 3. **`latest`/`previous` in diff** — These are convenience aliases for the most recent snapshots. If no changes occurred, the diff will be empty.
 4. **Watches created paused** — New watches start active by default. Pass `paused=True` to `create_watch` if you want to set up but not start monitoring yet.
 5. **Rate limiting** — Setting `minutes_between_checks` too low (under 5 minutes) may get you rate-limited, especially on the SaaS plan. 1 hour is a safe default.
+6. **Noisy diff cascades** — `get_snapshot_diff` arms a per-watch action fuse (default 3) so one noisy page cannot trigger unlimited `recheck_watch`, `update_watch`, or `delete_watch` calls. Raise `action_limit` only when needed; set `CHANGEDETECTION_MCP_ACTION_LIMIT_PER_WATCH=0` or call with `action_limit=0` to disable.
 
 ## Verification Checklist
 
@@ -122,6 +131,7 @@ Pause the watch on example.com till next week.
 |---------|---------|-------------|
 | `CHANGEDETECTION_BASE_URL` | `http://localhost:5000` | Base URL of your ChangeDetection.io instance |
 | `CHANGEDETECTION_API_KEY` | — | API key from Settings → API tab |
+| `CHANGEDETECTION_MCP_ACTION_LIMIT_PER_WATCH` | `3` | Mutating actions allowed after each `get_snapshot_diff` per watch. `0` disables the fuse. |
 
 ## MCP Tool Reference
 
@@ -134,7 +144,7 @@ Pause the watch on example.com till next week.
 | `delete_watch` | Delete a watch and history |
 | `recheck_watch` | Trigger immediate recheck |
 | `get_watch_history` | List snapshot timestamps |
-| `get_snapshot_diff` | Diff between two snapshots |
+| `get_snapshot_diff` | Diff between two snapshots; arms the per-watch follow-up action fuse (`action_limit`) |
 | `search_watches` | Full-text search |
 | `list_tags` | List tag groups |
 | `create_tag` | Create a tag/group |

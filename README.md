@@ -6,6 +6,7 @@ An MCP (Model Context Protocol) server that gives AI agents native access to [Ch
 
 - **Watch Management** — Create, list, update, delete, and trigger rechecks on watches
 - **Change History** — Browse snapshot history and get diffs between any two points in time
+- **Per-watch action fuse** — `get_snapshot_diff` arms a configurable limit on follow-up mutating actions for that watch so one noisy page cannot cascade into unlimited rechecks or edits
 - **Tag Management** — Organise watches with tags/groups
 - **Search** — Full-text search through watches by URL or title
 - **System Info** — Quick health and stats readout
@@ -76,6 +77,33 @@ hermes config set changedetection.api_key "your-api-key"
 | `list_tags` | List all tags/groups |
 | `create_tag` | Create a tag for organisation |
 | `get_system_info` | Get server stats (watch count, uptime, version) |
+
+## Safety Fuse: Per-Watch Action Limit
+
+When an agent asks for a page diff, that diff can prompt follow-up actions such as immediate rechecks, watch edits, or deletes. To stop one noisy site from triggering a cascade, `get_snapshot_diff` arms a per-watch fuse before returning.
+
+By default, each diff allows **3 mutating MCP actions** for that watch. The fuse applies to:
+
+- `recheck_watch`
+- `update_watch`
+- `delete_watch`
+
+After the budget is exhausted, those tools return a clear blocked message instead of calling the ChangeDetection.io API. The fuse is in-process and per watch UUID; watches without an armed fuse are unaffected.
+
+Configuration:
+
+```bash
+# Default: 3. Set 0 to disable the fuse globally.
+export CHANGEDETECTION_MCP_ACTION_LIMIT_PER_WATCH=3
+```
+
+Per call, override the default with the optional `action_limit` argument on `get_snapshot_diff`:
+
+```text
+get_snapshot_diff(uuid="...", from_timestamp="previous", to_timestamp="latest", action_limit=1)
+```
+
+Use `action_limit=0` to disable the fuse for that watch, or call `get_snapshot_diff` again with a higher value to re-arm it.
 
 ## Development
 
