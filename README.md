@@ -1,5 +1,7 @@
 # ChangeDetection.io MCP Server
 
+<!-- mcp-name: io.github.rusty4444/changedetection-mcp -->
+
 An MCP (Model Context Protocol) server that gives AI agents native access to [ChangeDetection.io](https://github.com/dgtlmoon/changedetection.io) — the open-source website change detection and monitoring platform.
 
 ## Features
