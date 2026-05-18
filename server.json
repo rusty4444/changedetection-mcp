@@ -1,0 +1,47 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.rusty4444/changedetection-mcp",
+  "title": "ChangeDetection.io MCP Server",
+  "description": "MCP server for ChangeDetection.io website monitoring and change history.",
+  "version": "0.1.0",
+  "websiteUrl": "https://github.com/rusty4444/changedetection-mcp",
+  "repository": {
+    "url": "https://github.com/rusty4444/changedetection-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "changedetection-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "CHANGEDETECTION_BASE_URL",
+          "description": "Base URL of the ChangeDetection.io instance, e.g. https://changedetection.example.com",
+          "isRequired": true,
+          "isSecret": false,
+          "placeholder": "https://changedetection.example.com"
+        },
+        {
+          "name": "CHANGEDETECTION_API_KEY",
+          "description": "ChangeDetection.io API key",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "github": {
+        "owner": "rusty4444",
+        "repo": "changedetection-mcp"
+      }
+    }
+  }
+}
