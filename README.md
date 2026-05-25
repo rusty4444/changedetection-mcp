@@ -1,4 +1,11 @@
 # ChangeDetection.io MCP Server
+<p align="center">
+  <a href="https://buymeacoffee.com/rusty4" target="_blank">
+    <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50">
+  </a>
+</p>
+
+
 
 <!-- mcp-name: io.github.rusty4444/changedetection-mcp -->
 
