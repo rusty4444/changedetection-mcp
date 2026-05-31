@@ -3,7 +3,7 @@ name = "changedetection-mcp"
 version = "0.1.0"
 description = "MCP server for ChangeDetection.io — AI-native website change monitoring"
 authors = [
-    {name = "Sam Russell", email = "sam.russell@nousresearch.com"},
+    {name = "Sam Russell", email = "rusty4444@users.noreply.github.com"},
 ]
 license = "MIT"
 readme = "README.md"
