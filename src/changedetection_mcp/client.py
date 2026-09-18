@@ -39,6 +39,19 @@ def _headers() -> dict[str, str]:
 # ── Watches ──────────────────────────────────────────────────────────
 
 
+def _watches_to_list(data: Any) -> list[dict[str, Any]]:
+    """Normalise a watch collection to a list, preserving each watch's UUID.
+
+    The /watch and /search endpoints return a dict keyed by UUID, and the
+    watch bodies carry no "uuid" field of their own — so the key is the only
+    place the UUID exists.  Fold it in rather than dropping it, otherwise
+    every uuid-taking tool becomes unreachable from list/search output.
+    """
+    if isinstance(data, dict):
+        return [{"uuid": uuid, **watch} for uuid, watch in data.items()]
+    return data
+
+
 def list_watches(tag: str | None = None) -> list[dict[str, Any]]:
     """Return all watches as a list.  Optionally filter by tag."""
     params: dict[str, str] = {}
@@ -46,11 +59,7 @@ def list_watches(tag: str | None = None) -> list[dict[str, Any]]:
         params["tag"] = tag
     r = httpx.get(f"{_get_base_url()}/watch", headers=_headers(), params=params, timeout=15)
     r.raise_for_status()
-    data = r.json()
-    # API returns dict keyed by UUID — normalise to list
-    if isinstance(data, dict):
-        return list(data.values())
-    return data
+    return _watches_to_list(r.json())
 
 
 def get_watch(uuid: str) -> dict[str, Any]:
@@ -103,10 +112,26 @@ def recheck_watch(uuid: str) -> dict[str, Any]:
 
 
 def get_watch_history(uuid: str) -> list[str]:
-    """Return list of snapshot timestamps for a watch."""
+    """Return snapshot timestamps for a watch, oldest first.
+
+    The API returns a dict of {timestamp: snapshot_path}; callers only want
+    the timestamps, sorted chronologically so that slicing off the tail
+    gives the most recent snapshots.
+    """
     r = httpx.get(f"{_get_base_url()}/watch/{uuid}/history", headers=_headers(), timeout=15)
     r.raise_for_status()
-    return r.json()
+    data = r.json()
+    if isinstance(data, dict):
+        return sorted(data, key=_history_sort_key)
+    return data
+
+
+def _history_sort_key(timestamp: str) -> tuple[int, float, str]:
+    """Sort epoch-second timestamps numerically, keeping non-numeric keys last."""
+    try:
+        return (0, float(timestamp), "")
+    except (TypeError, ValueError):
+        return (1, 0.0, str(timestamp))
 
 
 def get_snapshot_diff(
@@ -115,11 +140,16 @@ def get_snapshot_diff(
     to_timestamp: str,
     *,
     format: str = "text",
-    no_markup: bool = True,
+    no_markup: bool = False,
     changes_only: bool = True,
     ignore_whitespace: bool = True,
 ) -> str:
-    """Get a human-readable diff between two snapshots."""
+    """Get a human-readable diff between two snapshots.
+
+    no_markup defaults to False despite the name: passing it as true makes
+    the server wrap every line in @added_PLACEMARKER_OPEN/@removed_...
+    sentinels, whereas false yields readable "(added) ..." prefixes.
+    """
     params = {
         "format": format,
         "no_markup": str(no_markup).lower(),
@@ -165,11 +195,7 @@ def search_watches(query: str, tag: str | None = None, partial: bool = True) -> 
         params["partial"] = "1"
     r = httpx.get(f"{_get_base_url()}/search", headers=_headers(), params=params, timeout=15)
     r.raise_for_status()
-    data = r.json()
-    # API returns dict keyed by UUID — normalise to list
-    if isinstance(data, dict):
-        return list(data.values())
-    return data
+    return _watches_to_list(r.json())
 
 
 # ── System ───────────────────────────────────────────────────────────
